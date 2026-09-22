@@ -20,10 +20,10 @@
     }
   ],
 
-  "kv_namespaces": [
+  "r2_buckets": [
     {
       "binding": "MEDIA",
-      "id": "a36346996eb149e7b0bd72bae5bdae33"
+      "bucket_name": "werbung-media"
     }
   ]
 }

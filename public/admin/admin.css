@@ -163,6 +163,8 @@ tr:last-child td { border-bottom: none; }
 .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
 .pill-on { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good); }
 .pill-off { background: var(--gridline); color: var(--muted); }
+.pill-draft { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning); }
+.pill-archived { background: color-mix(in srgb, var(--critical) 14%, transparent); color: var(--critical); }
 .row-actions { display: flex; gap: 6px; }
 .copy-key { font-family: ui-monospace, monospace; font-size: 12px; background: var(--page); padding: 2px 6px; border-radius: 6px; cursor: pointer; }
 
@@ -199,6 +201,18 @@ tr:last-child td { border-bottom: none; }
 .media-preview { max-width: 100%; max-height: 140px; border-radius: 8px; margin-top: 8px; display: block; }
 .media-preview[hidden] { display: none; }
 
+.upload-progress { height: 6px; border-radius: 3px; background: var(--gridline); margin-top: 8px; overflow: hidden; }
+.upload-progress[hidden] { display: none; }
+.upload-progress-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 3px; transition: width 0.15s linear; }
+
+.bulk-bar {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--page); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 12px; margin-bottom: 12px; font-size: 13px;
+}
+.bulk-bar[hidden] { display: none; }
+.bulk-bar select { width: auto; }
+
 .rules-table td, .rules-table th { padding: 6px 8px; }
 .rules-table input { width: 90px; padding: 5px 8px; }
 
@@ -232,7 +246,7 @@ tr:last-child td { border-bottom: none; }
 .tooltip-row span { color: var(--text-secondary); }
 
 .meter-list { display: flex; flex-direction: column; gap: 10px; }
-.meter-item { display: grid; grid-template-columns: 110px 1fr 50px; align-items: center; gap: 10px; }
+.meter-item { display: grid; grid-template-columns: minmax(90px, 190px) 1fr 50px; align-items: center; gap: 10px; }
 .meter-label { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meter-track { height: 8px; border-radius: 4px; background: var(--seq-150); overflow: hidden; }
 .meter-fill { height: 100%; background: var(--seq-450); border-radius: 4px; }

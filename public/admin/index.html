@@ -11,6 +11,7 @@
     <div class="brand">Werbung<small>Admin-Portal</small></div>
     <a class="nav-link" data-route="dashboard">Dashboard</a>
     <a class="nav-link" data-route="ads">Werbeanzeigen</a>
+    <a class="nav-link" data-route="campaigns">Kampagnen</a>
     <a class="nav-link" data-route="sites">Websites</a>
     <a class="nav-link" data-route="stats">Statistik</a>
     <a class="nav-link" data-route="settings">Einstellungen</a>
@@ -38,15 +39,53 @@
 
     <section class="view" id="view-ads">
       <h1>Werbeanzeigen</h1>
-      <p class="view-subtitle">Bild-, Video-, Text-, Link- oder HTML-Creatives verwalten, gewichten und terminieren.</p>
+      <p class="view-subtitle">Bild-, Video-, Text-, Link- oder HTML-Creatives verwalten, gewichten, targetieren und terminieren.</p>
       <div class="toolbar">
-        <span></span>
+        <div class="filter-row" style="margin:0">
+          <input id="ads-search" placeholder="Suche nach Name…" style="width:220px" />
+          <select id="ads-filter-status">
+            <option value="">Alle Status</option>
+            <option value="draft">Entwurf</option>
+            <option value="active">Aktiv</option>
+            <option value="paused">Pausiert</option>
+            <option value="archived">Archiviert</option>
+          </select>
+        </div>
         <button class="btn btn-primary" id="btn-new-ad">+ Neue Anzeige</button>
       </div>
       <div class="card">
+        <div class="bulk-bar" id="ads-bulk-bar" hidden>
+          <span id="ads-bulk-count"></span>
+          <select id="ads-bulk-action">
+            <option value="activate">Aktivieren</option>
+            <option value="pause">Pausieren</option>
+            <option value="draft">Auf Entwurf setzen</option>
+            <option value="archive">Archivieren</option>
+            <option value="delete">Löschen</option>
+          </select>
+          <button class="btn btn-sm" id="btn-bulk-apply">Anwenden</button>
+        </div>
         <table id="ads-table">
           <thead><tr>
-            <th>Name</th><th>Typ</th><th>Status</th><th class="num">Gewicht</th><th class="num">Priorität</th><th>Zeitraum</th><th></th>
+            <th style="width:24px"><input type="checkbox" id="ads-select-all" /></th>
+            <th>Name</th><th>Typ</th><th>Status</th><th>Kampagne</th><th class="num">Gewicht</th><th class="num">Priorität</th><th>Zeitraum</th><th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view" id="view-campaigns">
+      <h1>Kampagnen</h1>
+      <p class="view-subtitle">Anzeigen zu Kampagnen bündeln und optional ein Impressions- oder Klick-Budget setzen — bei Erreichen pausiert die Kampagne automatisch.</p>
+      <div class="toolbar">
+        <span></span>
+        <button class="btn btn-primary" id="btn-new-campaign">+ Neue Kampagne</button>
+      </div>
+      <div class="card">
+        <table id="campaigns-table">
+          <thead><tr>
+            <th>Name</th><th>Status</th><th class="num">Impressionen</th><th class="num">Klicks</th><th class="num">Abschlüsse</th><th>Budget-Fortschritt</th><th></th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -104,6 +143,20 @@
           </table>
         </div>
       </div>
+      <div class="grid grid-2" style="margin-top:16px">
+        <div class="card">
+          <h2>Funnel</h2>
+          <div id="stats-funnel"></div>
+        </div>
+        <div class="card">
+          <h2>Nach Land</h2>
+          <div id="stats-country"></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px; max-width:480px">
+        <h2>Nach Gerätetyp</h2>
+        <div id="stats-device"></div>
+      </div>
     </section>
 
     <section class="view" id="view-settings">
@@ -121,6 +174,9 @@
         </select>
         <label>Hinweistext (falls oben gewählt)</label>
         <input id="set-fallback-message" />
+        <label>Max. Upload-Größe pro Datei (MB)</label>
+        <input id="set-max-upload-mb" type="number" min="1" />
+        <p class="field-hint">Größere Dateien werden automatisch in Teile zerlegt hochgeladen — das gilt nur für die maximal erlaubte Gesamtgröße.</p>
         <div class="btn-row" style="margin-top:18px">
           <button class="btn btn-primary" id="btn-save-settings">Speichern</button>
         </div>
@@ -155,8 +211,11 @@
         <p class="field-hint">Das Widget sendet <code>postMessage</code>-Events an die einbettende Seite.</p>
         <pre class="snippet">window.addEventListener("message", (event) => {
   if (event.data?.type === "werbung:reward") {
-    // Belohnung freischalten. event.data.adId kann null sein
-    // (kein Ad verfügbar, Fallback "sofort gewähren").
+    // Belohnung im Frontend freischalten.
+    // event.data.adId kann null sein (Fallback "sofort gewähren").
+    // event.data.rewardToken: einmal verwendbares Token für die
+    // serverseitige Bestätigung (siehe Punkt 3) — kann fehlen, wenn
+    // der Viewer keine Third-Party-Storage-Events erlaubt.
   }
   if (event.data?.type === "werbung:click") {
     // Nur bei Klick-Aktion "postmessage": event.data.payload
@@ -170,11 +229,32 @@
 iframeEl.contentWindow.postMessage({ type: "werbung:reset" }, "*");</pre>
       </div>
       <div class="card" style="margin-top:16px">
+        <h2>3. Belohnung serverseitig bestätigen (empfohlen)</h2>
+        <p class="field-hint">
+          Ein <code>postMessage</code> im Browser lässt sich mit den Entwicklertools fälschen. Für echte
+          Belohnungen (Guthaben, Freischaltungen) sollte das <strong>eigene Backend</strong> der einbettenden
+          Website das <code>rewardToken</code> serverseitig gegenprüfen, bevor es die Belohnung gutschreibt.
+          Das Token ist 10 Minuten gültig und genau einmal einlösbar.
+        </p>
+        <pre class="snippet">GET https://example.invalid/api/verify?token=TOKEN
+
+→ { "valid": true, "adId": "...", "siteId": "...", "viewerId": "...", "issuedAt": "..." }
+→ { "valid": false, "reason": "already_consumed" | "expired" | "not_found" }</pre>
+        <p class="field-hint">
+          Alternativ kann pro Website ein <strong>Webhook</strong> hinterlegt werden (Feld „Webhook-URL" im
+          Websites-Tab) — bei jedem Abschluss sendet Werbung dann serverseitig einen
+          <code>POST</code> mit <code>{ event: "reward", token, adId, siteId, viewerId, timestamp }</code> an
+          diese URL. Zustellung ist Best-Effort (kein Retry); <code>/api/verify</code> bleibt die
+          verlässliche Quelle, falls eine Zustellung verloren geht.
+        </p>
+      </div>
+      <div class="card" style="margin-top:16px">
         <h2>Hinweise</h2>
         <ul>
           <li>Klick-Aktion <strong>„Seite oben ersetzen"</strong> funktioniert nur, wenn der iFrame kein <code>sandbox</code>-Attribut ohne <code>allow-top-navigation</code> hat.</li>
           <li>Frequenzbegrenzung läuft über <code>localStorage</code> im iFrame — private Browserfenster oder deaktiviertes Storage setzen sie außer Kraft.</li>
           <li>Ohne <code>?site=</code>-Parameter erhält der Betrachter Anzeigen aus dem globalen Pool (keine Website-spezifischen Regeln, keine site-exklusiven Anzeigen).</li>
+          <li>Geo-Targeting nutzt das Herkunftsland aus dem Cloudflare-Edge-Request; Geräte-Targeting wird serverseitig aus dem User-Agent abgeleitet.</li>
         </ul>
       </div>
     </section>
@@ -199,7 +279,8 @@ iframeEl.contentWindow.postMessage({ type: "werbung:reset" }, "*");</pre>
 
         <div id="ad-media-field">
           <label>Datei</label>
-          <div class="dropzone" id="ad-dropzone">Datei hierher ziehen oder klicken<input type="file" id="ad-file" hidden /></div>
+          <div class="dropzone" id="ad-dropzone">Datei hierher ziehen oder klicken (Bilder & Videos, auch mehrere GB)<input type="file" id="ad-file" hidden /></div>
+          <div class="upload-progress" id="ad-upload-progress" hidden><div class="upload-progress-fill" id="ad-upload-progress-fill"></div></div>
           <img id="ad-media-preview" class="media-preview" hidden />
           <video id="ad-media-preview-video" class="media-preview" hidden controls muted></video>
         </div>
@@ -272,8 +353,31 @@ iframeEl.contentWindow.postMessage({ type: "werbung:reset" }, "*");</pre>
               <input id="ad-ends-at" type="datetime-local" />
             </div>
           </div>
+          <label>Status</label>
+          <select id="ad-status">
+            <option value="draft">Entwurf</option>
+            <option value="active" selected>Aktiv</option>
+            <option value="paused">Pausiert</option>
+            <option value="archived">Archiviert</option>
+          </select>
+          <label>Kampagne (optional)</label>
+          <select id="ad-campaign"><option value="">Keine</option></select>
           <div class="checkbox-row"><input type="checkbox" id="ad-restricted" /><label for="ad-restricted">Nur auf explizit zugewiesenen Websites ausspielen</label></div>
-          <div class="checkbox-row"><input type="checkbox" id="ad-enabled" checked /><label for="ad-enabled">Aktiv</label></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Zielgruppe (Targeting)</legend>
+          <label>Nur in diesen Ländern zeigen (ISO-Codes, Komma-getrennt, leer = alle)</label>
+          <input id="ad-allowed-countries" placeholder="AT, DE, CH" />
+          <label>In diesen Ländern nicht zeigen</label>
+          <input id="ad-blocked-countries" placeholder="US" />
+          <label>Geräte</label>
+          <div class="checkbox-row">
+            <input type="checkbox" id="ad-device-desktop" value="desktop" /><label for="ad-device-desktop">Desktop</label>
+            <input type="checkbox" id="ad-device-mobile" value="mobile" /><label for="ad-device-mobile">Mobil</label>
+            <input type="checkbox" id="ad-device-tablet" value="tablet" /><label for="ad-device-tablet">Tablet</label>
+          </div>
+          <p class="field-hint">Keine Auswahl = alle Geräte.</p>
         </fieldset>
 
         <fieldset>
@@ -282,8 +386,10 @@ iframeEl.contentWindow.postMessage({ type: "werbung:reset" }, "*");</pre>
           <p class="field-hint">Leer = Standardgewicht verwenden. 0 = auf dieser Website ausgeschlossen.</p>
         </fieldset>
 
+        <p class="field-hint" id="ad-audit-line"></p>
         <p class="form-error" id="ad-form-error" hidden></p>
         <div class="modal-footer">
+          <button type="button" class="btn" id="btn-duplicate-ad" hidden>Duplizieren</button>
           <button type="button" class="btn" id="btn-preview-ad">Vorschau</button>
           <button type="button" class="btn btn-danger" id="btn-delete-ad" hidden>Löschen</button>
           <button type="submit" class="btn btn-primary">Speichern</button>
@@ -304,10 +410,55 @@ iframeEl.contentWindow.postMessage({ type: "werbung:reset" }, "*");</pre>
         <input id="site-button-text" />
         <label>Akzentfarbe (optional)</label>
         <input id="site-accent-color" type="color" />
+        <label>Webhook-URL (optional)</label>
+        <input id="site-webhook-url" type="url" placeholder="https://deine-website.example/webhooks/werbung" />
+        <p class="field-hint">Wird serverseitig mit <code>{event:"reward", token, adId, ...}</code> aufgerufen, sobald ein Betrachter eine Anzeige abschließt.</p>
         <div class="checkbox-row"><input type="checkbox" id="site-enabled" checked /><label for="site-enabled">Aktiv</label></div>
         <p class="form-error" id="site-form-error" hidden></p>
         <div class="modal-footer">
           <button type="button" class="btn btn-danger" id="btn-delete-site" hidden>Löschen</button>
+          <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="campaign-modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-header"><h2 id="campaign-modal-title">Neue Kampagne</h2><button class="modal-close" data-close>&times;</button></div>
+      <form id="campaign-form">
+        <label>Name</label>
+        <input id="campaign-name" required />
+        <label>Status</label>
+        <select id="campaign-status">
+          <option value="active">Aktiv</option>
+          <option value="paused">Pausiert</option>
+          <option value="archived">Archiviert</option>
+        </select>
+        <div class="field-row">
+          <div>
+            <label>Impressions-Budget (optional)</label>
+            <input id="campaign-impression-cap" type="number" min="1" />
+          </div>
+          <div>
+            <label>Klick-Budget (optional)</label>
+            <input id="campaign-click-cap" type="number" min="1" />
+          </div>
+        </div>
+        <p class="field-hint">Sobald eines der Budgets erreicht ist, werden Anzeigen dieser Kampagne automatisch nicht mehr ausgespielt.</p>
+        <div class="field-row">
+          <div>
+            <label>Start (optional)</label>
+            <input id="campaign-starts-at" type="datetime-local" />
+          </div>
+          <div>
+            <label>Ende (optional)</label>
+            <input id="campaign-ends-at" type="datetime-local" />
+          </div>
+        </div>
+        <p class="form-error" id="campaign-form-error" hidden></p>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-danger" id="btn-delete-campaign" hidden>Löschen</button>
           <button type="submit" class="btn btn-primary">Speichern</button>
         </div>
       </form>

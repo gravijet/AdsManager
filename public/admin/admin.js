@@ -7,6 +7,7 @@ const views = document.querySelectorAll(".view");
 const navLinks = document.querySelectorAll(".nav-link");
 let sitesCache = [];
 let adsCache = [];
+let campaignsCache = [];
 
 function navigate(route) {
   if (!document.getElementById(`view-${route}`)) route = "dashboard";
@@ -14,6 +15,7 @@ function navigate(route) {
   navLinks.forEach((l) => l.classList.toggle("active", l.dataset.route === route));
   if (route === "dashboard") loadDashboard();
   if (route === "ads") loadAds();
+  if (route === "campaigns") loadCampaigns();
   if (route === "sites") loadSites();
   if (route === "stats") loadStats();
   if (route === "settings") loadSettings();
@@ -100,24 +102,85 @@ function nowIso() { return new Date().toISOString().slice(0, 16); }
 
 // ---------- Ads ----------
 
+function statusLabel(s) {
+  return { draft: "Entwurf", active: "Aktiv", paused: "Pausiert", archived: "Archiviert" }[s] || s;
+}
+function statusPillClass(s) {
+  return { draft: "pill-draft", active: "pill-on", paused: "pill-off", archived: "pill-archived" }[s] || "pill-off";
+}
+
 async function loadAds() {
-  [adsCache, sitesCache] = await Promise.all([api.ads.list(), api.sites.list()]);
+  [adsCache, sitesCache, campaignsCache] = await Promise.all([api.ads.list(), api.sites.list(), api.campaigns.list()]);
+  renderAdsTable();
+}
+
+function renderAdsTable() {
+  const search = document.getElementById("ads-search").value.trim().toLowerCase();
+  const statusFilter = document.getElementById("ads-filter-status").value;
+  const campaignsById = new Map(campaignsCache.map((c) => [c.id, c]));
+
+  const filtered = adsCache.filter((ad) => {
+    if (search && !ad.name.toLowerCase().includes(search)) return false;
+    if (statusFilter && ad.status !== statusFilter) return false;
+    return true;
+  });
+
   const tbody = document.querySelector("#ads-table tbody");
   tbody.innerHTML = "";
-  for (const ad of adsCache) {
-    const tr = document.createElement("tr");
+  for (const ad of filtered) {
     const period = ad.startsAt || ad.endsAt ? `${fmtDate(ad.startsAt)} – ${fmtDate(ad.endsAt)}` : "unbegrenzt";
+    const campaign = ad.campaignId ? campaignsById.get(ad.campaignId) : null;
+    const tr = document.createElement("tr");
     tr.innerHTML = `
+      <td><input type="checkbox" class="ads-row-check" data-id="${ad.id}" /></td>
       <td>${escapeHtml(ad.name)}</td>
       <td>${typeLabel(ad.type)}</td>
-      <td><span class="pill ${ad.enabled ? "pill-on" : "pill-off"}">${ad.enabled ? "Aktiv" : "Inaktiv"}</span></td>
+      <td><span class="pill ${statusPillClass(ad.status)}">${statusLabel(ad.status)}</span></td>
+      <td>${campaign ? escapeHtml(campaign.name) : "–"}</td>
       <td class="num">${ad.weight}</td>
       <td class="num">${ad.priority}</td>
       <td>${period}</td>
-      <td class="row-actions"><button class="btn btn-sm" data-edit="${ad.id}">Bearbeiten</button></td>`;
+      <td class="row-actions">
+        <button class="btn btn-sm" data-edit="${ad.id}">Bearbeiten</button>
+        <button class="btn btn-sm" data-dup="${ad.id}">Duplizieren</button>
+      </td>`;
     tbody.appendChild(tr);
   }
   tbody.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => openAdModal(btn.dataset.edit)));
+  tbody.querySelectorAll("[data-dup]").forEach((btn) => btn.addEventListener("click", () => duplicateAd(btn.dataset.dup)));
+  tbody.querySelectorAll(".ads-row-check").forEach((cb) => cb.addEventListener("change", updateBulkBar));
+  updateBulkBar();
+}
+
+document.getElementById("ads-search").addEventListener("input", renderAdsTable);
+document.getElementById("ads-filter-status").addEventListener("change", renderAdsTable);
+
+document.getElementById("ads-select-all").addEventListener("change", (e) => {
+  document.querySelectorAll(".ads-row-check").forEach((cb) => { cb.checked = e.target.checked; });
+  updateBulkBar();
+});
+
+function updateBulkBar() {
+  const checked = [...document.querySelectorAll(".ads-row-check:checked")];
+  const bar = document.getElementById("ads-bulk-bar");
+  bar.hidden = checked.length === 0;
+  document.getElementById("ads-bulk-count").textContent = `${checked.length} ausgewählt`;
+}
+
+document.getElementById("btn-bulk-apply").addEventListener("click", async () => {
+  const ids = [...document.querySelectorAll(".ads-row-check:checked")].map((cb) => cb.dataset.id);
+  if (!ids.length) return;
+  const action = document.getElementById("ads-bulk-action").value;
+  if (action === "delete" && !confirm(`${ids.length} Anzeige(n) wirklich löschen?`)) return;
+  const result = await api.ads.bulk(ids, action);
+  toast(`${result.count} Anzeige(n) aktualisiert.`);
+  loadAds();
+});
+
+async function duplicateAd(id) {
+  await api.ads.duplicate(id);
+  toast("Anzeige dupliziert (als Entwurf).");
+  loadAds();
 }
 
 function typeLabel(t) {
@@ -178,6 +241,13 @@ function collectRules() {
   }));
 }
 
+function populateCampaignSelect(selectedId) {
+  const select = document.getElementById("ad-campaign");
+  select.innerHTML = '<option value="">Keine</option>';
+  for (const c of campaignsCache) select.append(new Option(c.name, c.id));
+  select.value = selectedId || "";
+}
+
 async function openAdModal(id) {
   editingAdId = id;
   pendingMedia = null;
@@ -185,9 +255,17 @@ async function openAdModal(id) {
   document.getElementById("ad-form-error").hidden = true;
   document.getElementById("ad-media-preview").hidden = true;
   document.getElementById("ad-media-preview-video").hidden = true;
+  document.getElementById("ad-upload-progress").hidden = true;
   document.getElementById("btn-delete-ad").hidden = !id;
+  document.getElementById("btn-duplicate-ad").hidden = !id;
+  document.getElementById("ad-audit-line").textContent = "";
+  document.getElementById("ad-device-desktop").checked = false;
+  document.getElementById("ad-device-mobile").checked = false;
+  document.getElementById("ad-device-tablet").checked = false;
 
   if (!sitesCache.length) sitesCache = await api.sites.list();
+  if (!campaignsCache.length) campaignsCache = await api.campaigns.list();
+  populateCampaignSelect(null);
 
   if (id) {
     const ad = await api.ads.get(id);
@@ -208,14 +286,23 @@ async function openAdModal(id) {
     document.getElementById("ad-starts-at").value = ad.startsAt ? ad.startsAt.slice(0, 16) : "";
     document.getElementById("ad-ends-at").value = ad.endsAt ? ad.endsAt.slice(0, 16) : "";
     document.getElementById("ad-restricted").checked = ad.restrictedToSites;
-    document.getElementById("ad-enabled").checked = ad.enabled;
+    document.getElementById("ad-status").value = ad.status;
+    populateCampaignSelect(ad.campaignId);
+    document.getElementById("ad-allowed-countries").value = (ad.allowedCountries || []).join(", ");
+    document.getElementById("ad-blocked-countries").value = (ad.blockedCountries || []).join(", ");
+    for (const d of ad.allowedDevices || []) {
+      const el = document.getElementById(`ad-device-${d}`);
+      if (el) el.checked = true;
+    }
     pendingMedia = ad.mediaKey ? { mediaKey: ad.mediaKey, mediaMime: ad.mediaMime, mediaBytes: ad.mediaBytes } : null;
     if (pendingMedia && ad.type === "image") { const img = document.getElementById("ad-media-preview"); img.src = `/media/${ad.mediaKey}`; img.hidden = false; }
     if (pendingMedia && ad.type === "video") { const v = document.getElementById("ad-media-preview-video"); v.src = `/media/${ad.mediaKey}`; v.hidden = false; }
     renderRulesTable(ad.rules);
+    if (ad.updatedBy) document.getElementById("ad-audit-line").textContent = `Zuletzt bearbeitet von ${ad.updatedBy} am ${fmtDate(ad.updatedAt)}`;
   } else {
     document.getElementById("ad-modal-title").textContent = "Neue Anzeige";
     document.getElementById("ad-type").value = "image";
+    document.getElementById("ad-status").value = "active";
     renderRulesTable([]);
   }
 
@@ -227,6 +314,8 @@ async function openAdModal(id) {
 
 const dropzone = document.getElementById("ad-dropzone");
 const fileInput = document.getElementById("ad-file");
+const uploadProgress = document.getElementById("ad-upload-progress");
+const uploadProgressFill = document.getElementById("ad-upload-progress-fill");
 dropzone.addEventListener("click", () => fileInput.click());
 ["dragover", "dragleave", "drop"].forEach((evt) => {
   dropzone.addEventListener(evt, (e) => {
@@ -237,12 +326,23 @@ dropzone.addEventListener("click", () => fileInput.click());
 dropzone.addEventListener("drop", (e) => { if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
 fileInput.addEventListener("change", () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
 
+function fmtBytes(bytes) {
+  if (bytes > 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  if (bytes > 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024).toFixed(0)} KB`;
+}
+
 async function handleFile(file) {
-  dropzone.textContent = `Lade hoch: ${file.name}…`;
+  dropzone.textContent = `Lade hoch: ${file.name} (${fmtBytes(file.size)})…`;
+  uploadProgress.hidden = false;
+  uploadProgressFill.style.width = "0%";
   try {
-    const result = await api.upload(file);
+    const result = await api.upload(file, (fraction) => {
+      uploadProgressFill.style.width = `${Math.round(fraction * 100)}%`;
+    });
     pendingMedia = result;
-    dropzone.textContent = `${file.name} (${(result.mediaBytes / 1024).toFixed(0)} KB)`;
+    dropzone.textContent = `${file.name} (${fmtBytes(result.mediaBytes)})`;
+    uploadProgress.hidden = true;
     const isVideo = result.mediaMime.startsWith("video/");
     document.getElementById("ad-media-preview").hidden = isVideo;
     document.getElementById("ad-media-preview-video").hidden = !isVideo;
@@ -250,8 +350,16 @@ async function handleFile(file) {
     el.src = `/media/${result.mediaKey}`;
   } catch (err) {
     dropzone.textContent = "Fehler beim Upload — erneut versuchen";
+    uploadProgress.hidden = true;
     toast(err.message);
   }
+}
+
+function collectDevices() {
+  return ["desktop", "mobile", "tablet"].filter((d) => document.getElementById(`ad-device-${d}`).checked);
+}
+function splitCsvInput(value) {
+  return value.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 adForm.addEventListener("submit", async (e) => {
@@ -277,7 +385,11 @@ adForm.addEventListener("submit", async (e) => {
     priority: Number(document.getElementById("ad-priority").value) || 0,
     frequencyCapPerDay: document.getElementById("ad-frequency-cap").value === "" ? null : Number(document.getElementById("ad-frequency-cap").value),
     restrictedToSites: document.getElementById("ad-restricted").checked,
-    enabled: document.getElementById("ad-enabled").checked,
+    status: document.getElementById("ad-status").value,
+    campaignId: document.getElementById("ad-campaign").value || null,
+    allowedCountries: splitCsvInput(document.getElementById("ad-allowed-countries").value),
+    blockedCountries: splitCsvInput(document.getElementById("ad-blocked-countries").value),
+    allowedDevices: collectDevices(),
     startsAt: document.getElementById("ad-starts-at").value || null,
     endsAt: document.getElementById("ad-ends-at").value || null,
     rules: collectRules(),
@@ -309,12 +421,107 @@ document.getElementById("btn-delete-ad").addEventListener("click", async () => {
   loadAds();
 });
 
+document.getElementById("btn-duplicate-ad").addEventListener("click", async () => {
+  if (!editingAdId) return;
+  await api.ads.duplicate(editingAdId);
+  adModal.hidden = true;
+  toast("Anzeige dupliziert (als Entwurf).");
+  loadAds();
+});
+
 document.getElementById("btn-preview-ad").addEventListener("click", () => {
   if (editingAdId) {
     window.open(`/?preview=${editingAdId}`, "_blank");
   } else {
     toast("Bitte zuerst speichern, dann Vorschau öffnen.");
   }
+});
+
+// ---------- Campaigns ----------
+
+async function loadCampaigns() {
+  campaignsCache = await api.campaigns.list();
+  const tbody = document.querySelector("#campaigns-table tbody");
+  tbody.innerHTML = "";
+  for (const c of campaignsCache) {
+    const progressBits = [];
+    if (c.impressionCap) progressBits.push(`Impr. ${fmtInt(c.impressions)}/${fmtInt(c.impressionCap)}`);
+    if (c.clickCap) progressBits.push(`Klicks ${fmtInt(c.clicks)}/${fmtInt(c.clickCap)}`);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escapeHtml(c.name)}</td>
+      <td><span class="pill ${statusPillClass(c.status)}">${statusLabel(c.status)}</span></td>
+      <td class="num">${fmtInt(c.impressions)}</td>
+      <td class="num">${fmtInt(c.clicks)}</td>
+      <td class="num">${fmtInt(c.completes)}</td>
+      <td>${progressBits.join(" · ") || "unbegrenzt"}</td>
+      <td class="row-actions"><button class="btn btn-sm" data-edit="${c.id}">Bearbeiten</button></td>`;
+    tbody.appendChild(tr);
+  }
+  if (!campaignsCache.length) tbody.innerHTML = `<tr><td colspan="7" class="field-hint">Noch keine Kampagnen.</td></tr>`;
+  tbody.querySelectorAll("[data-edit]").forEach((btn) => btn.addEventListener("click", () => openCampaignModal(btn.dataset.edit)));
+}
+
+const campaignModal = document.getElementById("campaign-modal-backdrop");
+const campaignForm = document.getElementById("campaign-form");
+let editingCampaignId = null;
+
+document.getElementById("btn-new-campaign").addEventListener("click", () => openCampaignModal(null));
+campaignModal.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => campaignModal.hidden = true));
+
+function openCampaignModal(id) {
+  editingCampaignId = id;
+  campaignForm.reset();
+  document.getElementById("campaign-form-error").hidden = true;
+  document.getElementById("btn-delete-campaign").hidden = !id;
+
+  if (id) {
+    const c = campaignsCache.find((x) => x.id === id);
+    document.getElementById("campaign-modal-title").textContent = "Kampagne bearbeiten";
+    document.getElementById("campaign-name").value = c.name;
+    document.getElementById("campaign-status").value = c.status;
+    document.getElementById("campaign-impression-cap").value = c.impressionCap ?? "";
+    document.getElementById("campaign-click-cap").value = c.clickCap ?? "";
+    document.getElementById("campaign-starts-at").value = c.startsAt ? c.startsAt.slice(0, 16) : "";
+    document.getElementById("campaign-ends-at").value = c.endsAt ? c.endsAt.slice(0, 16) : "";
+  } else {
+    document.getElementById("campaign-modal-title").textContent = "Neue Kampagne";
+    document.getElementById("campaign-status").value = "active";
+  }
+  campaignModal.hidden = false;
+}
+
+campaignForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById("campaign-form-error");
+  errorEl.hidden = true;
+  const payload = {
+    name: document.getElementById("campaign-name").value,
+    status: document.getElementById("campaign-status").value,
+    impressionCap: document.getElementById("campaign-impression-cap").value === "" ? null : Number(document.getElementById("campaign-impression-cap").value),
+    clickCap: document.getElementById("campaign-click-cap").value === "" ? null : Number(document.getElementById("campaign-click-cap").value),
+    startsAt: document.getElementById("campaign-starts-at").value || null,
+    endsAt: document.getElementById("campaign-ends-at").value || null,
+  };
+  try {
+    if (editingCampaignId) await api.campaigns.update(editingCampaignId, payload);
+    else await api.campaigns.create(payload);
+    campaignModal.hidden = true;
+    toast("Gespeichert.");
+    loadCampaigns();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.hidden = false;
+  }
+});
+
+document.getElementById("btn-delete-campaign").addEventListener("click", async () => {
+  if (!editingCampaignId) return;
+  if (!confirm("Diese Kampagne wirklich löschen? Zugehörige Anzeigen bleiben erhalten, verlieren aber die Kampagnen-Zuordnung.")) return;
+  await api.campaigns.remove(editingCampaignId);
+  campaignModal.hidden = true;
+  toast("Gelöscht.");
+  loadCampaigns();
 });
 
 // ---------- Sites ----------
@@ -369,6 +576,7 @@ function openSiteModal(id) {
     document.getElementById("site-domain").value = site.domain || "";
     document.getElementById("site-button-text").value = site.buttonText || "";
     if (site.accentColor) document.getElementById("site-accent-color").value = site.accentColor;
+    document.getElementById("site-webhook-url").value = site.webhookUrl || "";
     document.getElementById("site-enabled").checked = site.enabled;
   } else {
     document.getElementById("site-modal-title").textContent = "Neue Website";
@@ -385,6 +593,7 @@ siteForm.addEventListener("submit", async (e) => {
     domain: document.getElementById("site-domain").value || null,
     buttonText: document.getElementById("site-button-text").value || null,
     accentColor: document.getElementById("site-accent-color").value || null,
+    webhookUrl: document.getElementById("site-webhook-url").value || null,
     enabled: document.getElementById("site-enabled").checked,
   };
   try {
@@ -461,6 +670,33 @@ async function refreshStats() {
     sitesBody.innerHTML += `<tr><td>${escapeHtml(s.name)}</td><td class="num">${fmtInt(s.impressions)}</td><td class="num">${fmtInt(s.clicks)}</td><td class="num">${fmtInt(s.completes)}</td></tr>`;
   }
   if (!sitesBody.innerHTML) sitesBody.innerHTML = `<tr><td colspan="4" class="field-hint">Keine Daten.</td></tr>`;
+
+  renderFunnel(stats);
+
+  const byType = Object.fromEntries((stats.totals || []).map((t) => [t.event_type, t.c]));
+  const impressions = byType.impression || 0;
+  const countryRows = stats.perCountry.filter((r) => r.c > 0).map((r) => ({ label: r.country, value: r.c }));
+  renderMeterList(document.getElementById("stats-country"), countryRows, { max: impressions || undefined });
+
+  const deviceLabel = { desktop: "Desktop", mobile: "Mobil", tablet: "Tablet", Unbekannt: "Unbekannt" };
+  const deviceRows = stats.perDevice.filter((r) => r.c > 0).map((r) => ({ label: deviceLabel[r.device_type] || r.device_type, value: r.c }));
+  renderMeterList(document.getElementById("stats-device"), deviceRows, { max: impressions || undefined });
+}
+
+function renderFunnel(stats) {
+  const byType = Object.fromEntries((stats.totals || []).map((t) => [t.event_type, t.c]));
+  const impressions = byType.impression || 0;
+  const clicks = byType.click || 0;
+  const completes = byType.complete || 0;
+  const verified = stats.verifiedRewards || 0;
+
+  const steps = [
+    { label: `Impressionen`, value: impressions },
+    { label: `Klicks (${fmtPct(clicks, impressions)})`, value: clicks },
+    { label: `Abschlüsse (${fmtPct(completes, impressions)})`, value: completes },
+    { label: `Verifiziert (${fmtPct(verified, impressions)})`, value: verified },
+  ];
+  renderMeterList(document.getElementById("stats-funnel"), steps, { max: Math.max(1, impressions) });
 }
 
 document.getElementById("btn-export-csv").addEventListener("click", () => {
@@ -484,6 +720,7 @@ async function loadSettings() {
   document.getElementById("set-accent-color").value = s.accent_color || "#6d5bff";
   document.getElementById("set-fallback-behavior").value = s.fallback_behavior || "grant";
   document.getElementById("set-fallback-message").value = s.fallback_message || "";
+  document.getElementById("set-max-upload-mb").value = s.max_upload_mb || "2048";
 }
 
 document.getElementById("btn-save-settings").addEventListener("click", async () => {
@@ -492,6 +729,7 @@ document.getElementById("btn-save-settings").addEventListener("click", async () 
     accent_color: document.getElementById("set-accent-color").value,
     fallback_behavior: document.getElementById("set-fallback-behavior").value,
     fallback_message: document.getElementById("set-fallback-message").value,
+    max_upload_mb: document.getElementById("set-max-upload-mb").value || "2048",
   });
   toast("Einstellungen gespeichert.");
 });

@@ -79,6 +79,30 @@ function logEvent(type, adId) {
   }
 }
 
+// "complete" needs the server's response (the reward token) so it can't use
+// sendBeacon like the other events — but it must still never block the UI.
+async function logCompleteAndGetToken(adId) {
+  if (isPreview) return null;
+  try {
+    const res = await fetch("/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "complete", adId, site: siteKey, viewerId: getViewerId() }),
+    });
+    const data = await res.json();
+    return data.rewardToken ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function getLastAdId() {
+  try { return sessionStorage.getItem("werbung_last_ad"); } catch { return null; }
+}
+function setLastAdId(adId) {
+  try { if (adId) sessionStorage.setItem("werbung_last_ad", adId); } catch { /* ignore */ }
+}
+
 claimBtn.addEventListener("click", claim);
 againBtn.addEventListener("click", claim);
 
@@ -86,7 +110,9 @@ async function claim() {
   claimBtn.disabled = true;
   setState("loading");
   try {
-    const res = await fetch(withSite(`/api/ad?vid=${encodeURIComponent(getViewerId() || "")}`));
+    const lastAdId = getLastAdId();
+    const query = `vid=${encodeURIComponent(getViewerId() || "")}${lastAdId ? `&last=${encodeURIComponent(lastAdId)}` : ""}`;
+    const res = await fetch(withSite(`/api/ad?${query}`));
     const data = await res.json();
     claimBtn.disabled = false;
 
@@ -102,11 +128,11 @@ async function claim() {
   }
 }
 
-function handleEmpty() {
+async function handleEmpty() {
   if (config?.fallbackBehavior === "grant") {
-    logEvent("complete", null);
-    postToParent("werbung:reward", { adId: null });
     setState("done");
+    const rewardToken = await logCompleteAndGetToken(null);
+    postToParent("werbung:reward", { adId: null, rewardToken });
   } else {
     emptyMessageEl.textContent = config?.fallbackMessage || "Danke!";
     setState("empty");
@@ -143,22 +169,34 @@ function renderAd(ad) {
   } else if (ad.type === "video") {
     videoEl = document.createElement("video");
     videoEl.src = `/media/${ad.mediaKey}`;
-    videoEl.autoplay = true;
-    videoEl.muted = true;
     videoEl.playsInline = true;
+    // The viewer already clicked the claim button to get here — that counts
+    // as a user gesture, so try playing with sound instead of forcing mute.
+    videoEl.muted = false;
     if (clickable) videoEl.addEventListener("click", onAdClick);
+    // A broken/missing media file must not leave the viewer stuck forever
+    // with no way to skip and no reward ever firing.
+    videoEl.addEventListener("error", () => onSkip(ad), { once: true });
     adSurface.appendChild(videoEl);
 
     const unmute = document.createElement("button");
     unmute.className = "unmute-btn";
     unmute.type = "button";
-    unmute.textContent = "🔇";
+    unmute.textContent = "🔊";
     unmute.addEventListener("click", (e) => {
       e.stopPropagation();
       videoEl.muted = !videoEl.muted;
       unmute.textContent = videoEl.muted ? "🔇" : "🔊";
     });
     adSurface.appendChild(unmute);
+
+    videoEl.play().catch(() => {
+      // Some browsers still refuse unmuted autoplay here — fall back to
+      // muted rather than leaving the video frozen on its first frame.
+      videoEl.muted = true;
+      unmute.textContent = "🔇";
+      videoEl.play().catch(() => {});
+    });
   } else if (ad.type === "html") {
     const frame = document.createElement("iframe");
     frame.className = "creative-frame";
@@ -249,8 +287,9 @@ function onAdClick() {
   const ad = currentAd;
 
   if (ad.clickAction === "open_url" && ad.clickUrl) {
+    // Opens in a new tab — the viewer stays on this page, so the ad must
+    // keep playing normally and only reward once it actually finishes.
     window.open(ad.clickUrl, "_blank", "noopener,noreferrer");
-    completeAd(ad);
   } else if (ad.clickAction === "redirect_top") {
     try { window.top.location.href = ad.clickUrl; } catch { window.open(ad.clickUrl, "_blank", "noopener,noreferrer"); }
     completeAd(ad);
@@ -259,13 +298,14 @@ function onAdClick() {
   }
 }
 
-function completeAd(ad) {
+async function completeAd(ad) {
   if (currentAd !== ad) return;
   cancelTimer();
-  logEvent("complete", ad.id);
-  postToParent("werbung:reward", { adId: ad.id });
   currentAd = null;
+  setLastAdId(ad.id);
   setState("done");
+  const rewardToken = await logCompleteAndGetToken(ad.id);
+  postToParent("werbung:reward", { adId: ad.id, rewardToken });
 }
 
 function onSkip(ad) {
