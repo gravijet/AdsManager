@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Belohnung</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="stage" class="stage" data-state="loading">
+
+    <div class="panel panel-idle" data-panel="idle">
+      <button id="claim-btn" class="claim-btn" type="button">Belohnung beanspruchen</button>
+    </div>
+
+    <div class="panel panel-empty" data-panel="empty">
+      <p id="empty-message" class="empty-message">Danke!</p>
+    </div>
+
+    <div class="panel panel-playing" data-panel="playing">
+      <div id="ad-surface" class="ad-surface"></div>
+      <div class="ad-footer">
+        <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+        <div class="ad-footer-row">
+          <span id="timer-label" class="timer-label"></span>
+          <button id="skip-btn" class="skip-btn" type="button" hidden>Überspringen</button>
+          <button id="finish-btn" class="finish-btn" type="button" hidden>Fertig</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel panel-done" data-panel="done">
+      <div class="done-check">✓</div>
+      <p class="done-text">Belohnung freigeschaltet</p>
+      <button id="again-btn" class="again-btn" type="button">Erneut ansehen</button>
+    </div>
+
+    <div class="panel panel-skipped" data-panel="skipped">
+      <p class="skipped-text">Übersprungen — keine Belohnung</p>
+    </div>
+
+  </div>
+
+  <script type="module" src="/player.js"></script>
+</body>
+</html>

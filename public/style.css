@@ -1,0 +1,190 @@
+:root {
+  --accent: #6d5bff;
+  --bg: #ffffff;
+  --card-bg: #f4f4f7;
+  --text: #17171c;
+  --text-dim: #6b6b76;
+  --track: #e4e4ea;
+  --radius: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111114;
+    --card-bg: #1b1b20;
+    --text: #f2f2f5;
+    --text-dim: #9b9ba3;
+    --track: #2c2c33;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: transparent;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+}
+
+.stage {
+  height: 100%;
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.panel { display: none; width: 100%; height: 100%; }
+.stage[data-state="idle"] .panel-idle,
+.stage[data-state="empty"] .panel-empty,
+.stage[data-state="playing"] .panel-playing,
+.stage[data-state="done"] .panel-done,
+.stage[data-state="skipped"] .panel-skipped {
+  display: flex;
+}
+
+.panel-idle, .panel-empty, .panel-done, .panel-skipped {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.claim-btn {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.claim-btn:hover { transform: translateY(-1px); }
+.claim-btn:active { transform: translateY(0); box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 45%, transparent); }
+.claim-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
+
+.empty-message { color: var(--text-dim); font-size: 14px; margin: 0; }
+
+.panel-playing {
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+}
+
+.ad-surface {
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ad-surface img, .ad-surface video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  cursor: pointer;
+}
+.ad-surface.no-click img, .ad-surface.no-click video { cursor: default; }
+
+.ad-surface iframe.creative-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.ad-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  cursor: pointer;
+}
+.ad-card.no-click { cursor: default; }
+.ad-card .ad-eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); }
+.ad-card .ad-title { font-size: 17px; font-weight: 700; margin: 0; }
+.ad-card .ad-body { font-size: 14px; color: var(--text-dim); margin: 0; white-space: pre-wrap; }
+.ad-card .ad-cta {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.unmute-btn {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  font-size: 16px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+
+.ad-footer { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+.progress-track { height: 4px; border-radius: 2px; background: var(--track); overflow: hidden; }
+.progress-fill { height: 100%; width: 0%; background: var(--accent); transition: width 0.2s linear; }
+.ad-footer-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.timer-label { font-size: 12px; color: var(--text-dim); }
+
+.skip-btn, .finish-btn {
+  appearance: none;
+  border: 1px solid var(--track);
+  background: transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.finish-btn { border-color: var(--accent); color: var(--accent); }
+
+.done-check {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+}
+.done-text { font-weight: 600; margin: 0; }
+.again-btn {
+  appearance: none;
+  border: 1px solid var(--track);
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.skipped-text { color: var(--text-dim); font-size: 13px; margin: 0; }

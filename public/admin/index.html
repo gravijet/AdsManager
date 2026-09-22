@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Werbung — Admin</title>
+  <link rel="stylesheet" href="/admin/admin.css" />
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="brand">Werbung<small>Admin-Portal</small></div>
+    <a class="nav-link" data-route="dashboard">Dashboard</a>
+    <a class="nav-link" data-route="ads">Werbeanzeigen</a>
+    <a class="nav-link" data-route="sites">Websites</a>
+    <a class="nav-link" data-route="stats">Statistik</a>
+    <a class="nav-link" data-route="settings">Einstellungen</a>
+    <a class="nav-link" data-route="integration">Integration</a>
+    <div class="actor-email" id="actor-email"></div>
+  </nav>
+
+  <main class="main">
+
+    <section class="view" id="view-dashboard">
+      <h1>Dashboard</h1>
+      <p class="view-subtitle">Überblick der letzten 14 Tage.</p>
+      <div class="grid grid-kpis" id="dash-kpis"></div>
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Verlauf</h2>
+          <div id="dash-chart"></div>
+        </div>
+        <div class="card">
+          <h2>Top Anzeigen (Impressionen)</h2>
+          <div id="dash-top-ads"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-ads">
+      <h1>Werbeanzeigen</h1>
+      <p class="view-subtitle">Bild-, Video-, Text-, Link- oder HTML-Creatives verwalten, gewichten und terminieren.</p>
+      <div class="toolbar">
+        <span></span>
+        <button class="btn btn-primary" id="btn-new-ad">+ Neue Anzeige</button>
+      </div>
+      <div class="card">
+        <table id="ads-table">
+          <thead><tr>
+            <th>Name</th><th>Typ</th><th>Status</th><th class="num">Gewicht</th><th class="num">Priorität</th><th>Zeitraum</th><th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view" id="view-sites">
+      <h1>Websites</h1>
+      <p class="view-subtitle">Jede eingebundene Website erhält einen eigenen Key für individuelle Anzeigen-Gewichtung.</p>
+      <div class="toolbar">
+        <span></span>
+        <button class="btn btn-primary" id="btn-new-site">+ Neue Website</button>
+      </div>
+      <div class="card">
+        <table id="sites-table">
+          <thead><tr>
+            <th>Name</th><th>Domain</th><th>Site-Key</th><th>Status</th><th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view" id="view-stats">
+      <h1>Statistik</h1>
+      <p class="view-subtitle">Impressionen, Klicks und Abschlüsse — gefiltert nach Zeitraum, Website und Anzeige.</p>
+      <div class="filter-row">
+        <select id="stats-range">
+          <option value="7">Letzte 7 Tage</option>
+          <option value="30" selected>Letzte 30 Tage</option>
+          <option value="90">Letzte 90 Tage</option>
+        </select>
+        <select id="stats-site"><option value="">Alle Websites</option></select>
+        <select id="stats-ad"><option value="">Alle Anzeigen</option></select>
+        <button class="btn btn-sm" id="btn-export-csv">CSV exportieren</button>
+      </div>
+      <div class="grid grid-kpis" id="stats-kpis"></div>
+      <div class="card" style="margin-bottom:16px">
+        <h2>Verlauf</h2>
+        <div id="stats-chart"></div>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <h2>Nach Anzeige</h2>
+          <table id="stats-ads-table">
+            <thead><tr><th>Anzeige</th><th class="num">Impr.</th><th class="num">Klicks</th><th class="num">CTR</th><th class="num">Abschlüsse</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="card">
+          <h2>Nach Website</h2>
+          <table id="stats-sites-table">
+            <thead><tr><th>Website</th><th class="num">Impr.</th><th class="num">Klicks</th><th class="num">Abschlüsse</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-settings">
+      <h1>Einstellungen</h1>
+      <p class="view-subtitle">Globale Standardwerte für alle Websites ohne eigene Übersteuerung.</p>
+      <div class="card" style="max-width:480px">
+        <label>Standard-Button-Text</label>
+        <input id="set-button-text" />
+        <label>Standard-Akzentfarbe</label>
+        <input id="set-accent-color" type="color" />
+        <label>Verhalten ohne verfügbare Anzeige</label>
+        <select id="set-fallback-behavior">
+          <option value="grant">Belohnung sofort gewähren</option>
+          <option value="message">Hinweistext anzeigen</option>
+        </select>
+        <label>Hinweistext (falls oben gewählt)</label>
+        <input id="set-fallback-message" />
+        <div class="btn-row" style="margin-top:18px">
+          <button class="btn btn-primary" id="btn-save-settings">Speichern</button>
+        </div>
+      </div>
+
+      <fieldset style="max-width:480px; margin-top:24px">
+        <legend>Datenbereinigung</legend>
+        <label>Events löschen, die älter sind als (Tage)</label>
+        <div class="btn-row">
+          <input id="purge-days" type="number" min="1" value="180" style="width:100px" />
+          <button class="btn btn-danger" id="btn-purge">Löschen</button>
+        </div>
+        <p class="field-hint">Löscht Impressions/Klicks/Abschluss-Logs jenseits dieses Zeitraums dauerhaft. Aggregierte Statistik-Zusammenfassungen sind davon nicht betroffen, da sie live berechnet werden.</p>
+      </fieldset>
+    </section>
+
+    <section class="view" id="view-integration">
+      <h1>Integration</h1>
+      <p class="view-subtitle">So bindest du das Werbe-Widget auf einer Website ein.</p>
+      <div class="card">
+        <h2>1. iFrame einbetten</h2>
+        <p class="field-hint">Ersetze <code>SITE_KEY</code> mit dem Key der jeweiligen Website (siehe „Websites"-Tab).</p>
+        <pre class="snippet">&lt;iframe
+  src="https://example.invalid/?site=SITE_KEY"
+  width="360" height="280"
+  style="border:0;"
+  allow="autoplay"
+&gt;&lt;/iframe&gt;</pre>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>2. Auf die Belohnung reagieren</h2>
+        <p class="field-hint">Das Widget sendet <code>postMessage</code>-Events an die einbettende Seite.</p>
+        <pre class="snippet">window.addEventListener("message", (event) => {
+  if (event.data?.type === "werbung:reward") {
+    // Belohnung freischalten. event.data.adId kann null sein
+    // (kein Ad verfügbar, Fallback "sofort gewähren").
+  }
+  if (event.data?.type === "werbung:click") {
+    // Nur bei Klick-Aktion "postmessage": event.data.payload
+  }
+  if (event.data?.type === "werbung:ready") {
+    // Widget ist geladen.
+  }
+});
+
+// Optional: Widget von außen zurücksetzen (z.B. neuer Versuch)
+iframeEl.contentWindow.postMessage({ type: "werbung:reset" }, "*");</pre>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>Hinweise</h2>
+        <ul>
+          <li>Klick-Aktion <strong>„Seite oben ersetzen"</strong> funktioniert nur, wenn der iFrame kein <code>sandbox</code>-Attribut ohne <code>allow-top-navigation</code> hat.</li>
+          <li>Frequenzbegrenzung läuft über <code>localStorage</code> im iFrame — private Browserfenster oder deaktiviertes Storage setzen sie außer Kraft.</li>
+          <li>Ohne <code>?site=</code>-Parameter erhält der Betrachter Anzeigen aus dem globalen Pool (keine Website-spezifischen Regeln, keine site-exklusiven Anzeigen).</li>
+        </ul>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="modal-backdrop" id="ad-modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-header"><h2 id="ad-modal-title">Neue Anzeige</h2><button class="modal-close" data-close>&times;</button></div>
+      <form id="ad-form">
+        <label>Name (intern)</label>
+        <input id="ad-name" required />
+
+        <label>Typ</label>
+        <select id="ad-type">
+          <option value="image">Bild</option>
+          <option value="video">Video</option>
+          <option value="text">Text</option>
+          <option value="link">Link</option>
+          <option value="html">HTML (Rich-Media)</option>
+        </select>
+
+        <div id="ad-media-field">
+          <label>Datei</label>
+          <div class="dropzone" id="ad-dropzone">Datei hierher ziehen oder klicken<input type="file" id="ad-file" hidden /></div>
+          <img id="ad-media-preview" class="media-preview" hidden />
+          <video id="ad-media-preview-video" class="media-preview" hidden controls muted></video>
+        </div>
+
+        <div id="ad-title-field">
+          <label>Titel</label>
+          <input id="ad-title" />
+        </div>
+        <div id="ad-content-field">
+          <label id="ad-content-label">Inhalt</label>
+          <textarea id="ad-content"></textarea>
+        </div>
+
+        <fieldset>
+          <legend>Klick-Verhalten</legend>
+          <label>Aktion bei Klick</label>
+          <select id="ad-click-action">
+            <option value="none">Keine (nicht klickbar)</option>
+            <option value="open_url">Link in neuem Tab öffnen</option>
+            <option value="redirect_top">Übergeordnete Seite ersetzen</option>
+            <option value="postmessage">postMessage an einbettende Seite</option>
+          </select>
+          <div id="ad-click-url-field">
+            <label>Ziel-URL</label>
+            <input id="ad-click-url" type="url" placeholder="https://…" />
+          </div>
+          <div id="ad-postmessage-field">
+            <label>Payload (JSON, optional)</label>
+            <textarea id="ad-postmessage-payload" placeholder='{"reward": 10}'></textarea>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Anzeigedauer</legend>
+          <label>Modus</label>
+          <select id="ad-duration-mode">
+            <option value="fixed">Feste Dauer</option>
+            <option value="until_finished">Bis Ende (nur Video)</option>
+            <option value="manual">Manuell schließen</option>
+          </select>
+          <div id="ad-duration-seconds-field">
+            <label>Dauer (Sekunden)</label>
+            <input id="ad-duration-seconds" type="number" min="1" value="6" />
+          </div>
+          <label>Überspringbar nach (Sekunden, leer = nicht überspringbar)</label>
+          <input id="ad-skip-after" type="number" min="0" />
+        </fieldset>
+
+        <fieldset>
+          <legend>Ausspielung</legend>
+          <div class="field-row">
+            <div>
+              <label>Gewicht (relative Wahrscheinlichkeit)</label>
+              <input id="ad-weight" type="number" min="0" value="100" />
+            </div>
+            <div>
+              <label>Priorität (höher = bevorzugt)</label>
+              <input id="ad-priority" type="number" value="0" />
+            </div>
+          </div>
+          <label>Frequenz-Limit pro Betrachter/Tag (leer = unbegrenzt)</label>
+          <input id="ad-frequency-cap" type="number" min="1" />
+          <div class="field-row">
+            <div>
+              <label>Start (optional)</label>
+              <input id="ad-starts-at" type="datetime-local" />
+            </div>
+            <div>
+              <label>Ende (optional)</label>
+              <input id="ad-ends-at" type="datetime-local" />
+            </div>
+          </div>
+          <div class="checkbox-row"><input type="checkbox" id="ad-restricted" /><label for="ad-restricted">Nur auf explizit zugewiesenen Websites ausspielen</label></div>
+          <div class="checkbox-row"><input type="checkbox" id="ad-enabled" checked /><label for="ad-enabled">Aktiv</label></div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Website-spezifische Gewichtung</legend>
+          <table class="rules-table" id="ad-rules-table"><tbody></tbody></table>
+          <p class="field-hint">Leer = Standardgewicht verwenden. 0 = auf dieser Website ausgeschlossen.</p>
+        </fieldset>
+
+        <p class="form-error" id="ad-form-error" hidden></p>
+        <div class="modal-footer">
+          <button type="button" class="btn" id="btn-preview-ad">Vorschau</button>
+          <button type="button" class="btn btn-danger" id="btn-delete-ad" hidden>Löschen</button>
+          <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="site-modal-backdrop" hidden>
+    <div class="modal">
+      <div class="modal-header"><h2 id="site-modal-title">Neue Website</h2><button class="modal-close" data-close>&times;</button></div>
+      <form id="site-form">
+        <label>Name</label>
+        <input id="site-name" required />
+        <label>Domain (informativ)</label>
+        <input id="site-domain" placeholder="example.com" />
+        <label>Button-Text (optional, überschreibt Standard)</label>
+        <input id="site-button-text" />
+        <label>Akzentfarbe (optional)</label>
+        <input id="site-accent-color" type="color" />
+        <div class="checkbox-row"><input type="checkbox" id="site-enabled" checked /><label for="site-enabled">Aktiv</label></div>
+        <p class="form-error" id="site-form-error" hidden></p>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-danger" id="btn-delete-site" hidden>Löschen</button>
+          <button type="submit" class="btn btn-primary">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="/admin/admin.js"></script>
+</body>
+</html>
