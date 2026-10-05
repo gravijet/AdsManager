@@ -11,6 +11,6 @@ npm run dev
 npm run typecheck
 ```
 
-The administration API requires Cloudflare Access. Supply your own database and storage bindings in a local Wrangler configuration. No account IDs or domain routes are included.
+The administration API requires Cloudflare Access. Supply your own database and storage bindings in a local Wrangler configuration.
 
 The reward endpoint issues single-use tokens. Verify a token on the server before granting a reward; a browser `postMessage` alone is insufficient.
