@@ -1,13 +1,13 @@
 {
-  "name": "werbung",
+  "name": "ads-manager",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:migrate:local": "wrangler d1 migrations apply werbung-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply werbung-db --remote",
+    "db:migrate:local": "wrangler d1 migrations apply ads-manager-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply ads-manager-db --remote",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
